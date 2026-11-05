@@ -1,0 +1,923 @@
+-- [[ Rscripts Risk Notice ]]
+-- This script is not verified by rscripts.net. Deal with caution.
+--
+-- Stay safe:
+--   • Never log in on unofficial Roblox sites or lookalike domains.
+--   • Real Roblox links use roblox.com (check the .com ending).
+--   • Treat fake Roblox login / "claim reward" pages as phishing.
+-- [[ End Rscripts Risk Notice ]]
+-- made by god6767
+-- Winter GUI v2: only the interface look was changed, farm logic is untouched
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
+local gameplayRemotes = remotes and remotes:WaitForChild("Gameplay", 5)
+-- config
+local MAX_DIST = 1000
+local TARGET_SPEED = 23
+local RESET_DELAY = 5.0
+local ROUND_START_DELAY = 1.5
+-- end of the config
+local enabled = false
+local afkActive = false
+local isLoaded = false
+local bagIsFull = false
+local isWaitingForCoins = false
+local activeCoins = {}
+local blacklistedCoins = {}
+local currentTarget = nil
+local noCoinsStartTime = nil
+local hasCollectedThisLife = false
+
+local linearVelocity = nil
+local velocityAttachment = nil
+local noclipConnection = nil
+local heartbeatConnection = nil
+local coinAddedConnection = nil
+local coinRemovedConnection = nil
+local coinsStartedConnection = nil
+local coinCollectedConnection = nil
+local targetFinderThread = nil
+local characterAddedConnection = nil
+
+local characterParts = {}
+
+local function updateCharacterParts()
+    characterParts = {}
+    if not character then return end
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            table.insert(characterParts, part)
+        end
+    end
+end
+
+local function restoreCollision()
+    for _, part in ipairs(characterParts) do
+        if part and part.Parent then
+            part.CanCollide = true
+        end
+    end
+end
+
+local function cleanupConnections()
+    if heartbeatConnection then heartbeatConnection:Disconnect() heartbeatConnection = nil end
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    if coinAddedConnection then coinAddedConnection:Disconnect() coinAddedConnection = nil end
+    if coinRemovedConnection then coinRemovedConnection:Disconnect() coinRemovedConnection = nil end
+    if coinsStartedConnection then coinsStartedConnection:Disconnect() coinsStartedConnection = nil end
+    if coinCollectedConnection then coinCollectedConnection:Disconnect() coinCollectedConnection = nil end
+end
+
+local function stopMovement()
+    if linearVelocity then
+        linearVelocity.VectorVelocity = Vector3.zero
+        linearVelocity.Enabled = false
+    end
+    if rootPart then
+        rootPart.AssemblyLinearVelocity = Vector3.zero
+        rootPart.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+local function setupVelocity()
+    if not rootPart then return end
+
+    velocityAttachment = rootPart:FindFirstChild("FarmAttachment")
+    if not velocityAttachment then
+        velocityAttachment = Instance.new("Attachment")
+        velocityAttachment.Name = "FarmAttachment"
+        velocityAttachment.Parent = rootPart
+    end
+
+    linearVelocity = rootPart:FindFirstChild("FarmLinearVelocity")
+    if not linearVelocity then
+        linearVelocity = Instance.new("LinearVelocity")
+        linearVelocity.Name = "FarmLinearVelocity"
+        linearVelocity.Attachment0 = velocityAttachment
+        linearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+        linearVelocity.VectorVelocity = Vector3.zero
+        linearVelocity.Enabled = false
+        linearVelocity.ForceLimitMode = Enum.ForceLimitMode.PerAxis
+        linearVelocity.MaxAxesForce = Vector3.new(100000, 100000, 100000)
+        linearVelocity.Parent = rootPart
+    end
+end
+
+local function removeVelocity()
+    if linearVelocity then linearVelocity:Destroy() linearVelocity = nil end
+    if velocityAttachment then velocityAttachment:Destroy() velocityAttachment = nil end
+end
+
+local function startNoclip()
+    if noclipConnection then noclipConnection:Disconnect() end
+    updateCharacterParts()
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        if character and enabled and humanoid and humanoid.Health > 0 and not bagIsFull and not isWaitingForCoins then
+            for i = 1, #characterParts do
+                local part = characterParts[i]
+                if part and part.Parent and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+
+    if humanoid then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    end
+end
+
+local function stopNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    restoreCollision()
+end
+
+local function antiAfkLoop()
+    while afkActive and enabled do
+        task.wait(30)
+        if not afkActive or not enabled then break end
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end
+
+local function isCoin(part)
+    if not part:IsA("BasePart") or blacklistedCoins[part] then return false end
+    local name = part.Name:lower()
+    return name:find("coin") or name:find("cash") or name:find("money") or name:find("collect")
+end
+
+local function checkGuiBagFull()
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return false end
+
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Name ~= "AutoFarmUI" then
+            local container = gui:FindFirstChild("Container", true)
+            if container then
+                for _, frame in ipairs(container:GetChildren()) do
+                    if frame:IsA("Frame") and frame.Visible then
+                        local fullIcon = frame:FindFirstChild("FullBagIcon", true)
+                        local fullText = frame:FindFirstChild("Full", true)
+                        if (fullIcon and fullIcon.Visible) or (fullText and fullText.Visible) then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function trackCoin(part)
+    if isCoin(part) then
+        activeCoins[part] = true
+    end
+end
+
+local function untrackCoin(part)
+    activeCoins[part] = nil
+    if currentTarget == part then
+        currentTarget = nil
+    end
+end
+
+local function triggerBagFullReset()
+    if bagIsFull then return end
+    bagIsFull = true
+    stopMovement()
+    stopNoclip()
+
+    task.wait(0.2)
+    if humanoid and humanoid.Health > 0 then
+        humanoid.Health = 0
+    end
+end
+
+local function initCoinListeners()
+    activeCoins = {}
+
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if isCoin(v) then
+            activeCoins[v] = true
+        end
+    end
+
+    coinAddedConnection = Workspace.DescendantAdded:Connect(trackCoin)
+    coinRemovedConnection = Workspace.DescendantRemoving:Connect(untrackCoin)
+
+    if gameplayRemotes then
+        local coinsStartedRemote = gameplayRemotes:WaitForChild("CoinsStarted", 5)
+        local coinCollectedRemote = gameplayRemotes:WaitForChild("CoinCollected", 5)
+
+        if coinsStartedRemote then
+            coinsStartedConnection = coinsStartedRemote.OnClientEvent:Connect(function()
+                isWaitingForCoins = true
+                stopMovement()
+                currentTarget = nil
+                activeCoins = {}
+                blacklistedCoins = {}
+                noCoinsStartTime = nil
+                bagIsFull = false
+
+                task.wait(ROUND_START_DELAY)
+
+                for _, v in ipairs(Workspace:GetDescendants()) do
+                    if isCoin(v) then
+                        activeCoins[v] = true
+                    end
+                end
+
+                isWaitingForCoins = false
+            end)
+        end
+
+        if coinCollectedRemote then
+            coinCollectedConnection = coinCollectedRemote.OnClientEvent:Connect(function(coinType, currentAmount, maxAmount)
+                local current = tonumber(currentAmount)
+                local max = tonumber(maxAmount)
+
+                if current and max and current >= max then
+                    triggerBagFullReset()
+                end
+            end)
+        end
+    end
+end
+
+local function startTargetFinder()
+    if targetFinderThread then task.cancel(targetFinderThread) end
+
+    targetFinderThread = task.spawn(function()
+        while isLoaded do
+            task.wait(0.1)
+
+            if enabled and not bagIsFull and checkGuiBagFull() then
+                triggerBagFullReset()
+            end
+
+            if enabled and not bagIsFull and not isWaitingForCoins and rootPart then
+                local rootPos = rootPart.Position
+                local nearest = nil
+                local nearestDist = MAX_DIST + 1
+
+                for coin, _ in pairs(activeCoins) do
+                    if coin and coin.Parent and not blacklistedCoins[coin] then
+                        local dist = (coin.Position - rootPos).Magnitude
+                        if dist < nearestDist then
+                            nearestDist = dist
+                            nearest = coin
+                        end
+                    else
+                        activeCoins[coin] = nil
+                    end
+                end
+
+                -- FIX: Skip coins that no longer have a visual (stolen by others)
+                if nearest and not nearest:FindFirstChild("CoinVisual") then
+                    activeCoins[nearest] = nil
+                    nearest = nil
+                end
+
+                currentTarget = nearest
+            end
+        end
+    end)
+end
+
+local function startMovementEngine()
+    cleanupConnections()
+    setupVelocity()
+    initCoinListeners()
+    noCoinsStartTime = nil
+
+    if enabled and not bagIsFull then startNoclip() end
+
+    heartbeatConnection = RunService.Heartbeat:Connect(function()
+        if not enabled or bagIsFull or isWaitingForCoins or not rootPart or not rootPart.Parent or not humanoid or humanoid.Health <= 0 then
+            stopMovement()
+            return
+        end
+
+        if currentTarget and currentTarget.Parent and not blacklistedCoins[currentTarget] then
+            noCoinsStartTime = nil
+            local targetPos = currentTarget.Position
+            local rootPos = rootPart.Position
+            local dist = (targetPos - rootPos).Magnitude
+
+            if dist <= 1.2 then
+                rootPart.CFrame = CFrame.new(targetPos)
+                stopMovement()
+
+                hasCollectedThisLife = true
+                blacklistedCoins[currentTarget] = true
+                activeCoins[currentTarget] = nil
+                currentTarget = nil
+            else
+                if linearVelocity then
+                    linearVelocity.Enabled = true
+                    linearVelocity.VectorVelocity = (targetPos - rootPos).Unit * TARGET_SPEED
+                end
+            end
+        else
+            stopMovement()
+
+            if hasCollectedThisLife then
+                if not noCoinsStartTime then
+                    noCoinsStartTime = os.clock()
+                elseif os.clock() - noCoinsStartTime >= RESET_DELAY then
+                    noCoinsStartTime = nil
+                    cleanupConnections()
+                    humanoid.Health = 0
+                end
+            else
+                noCoinsStartTime = nil
+            end
+        end
+    end)
+end
+
+local function unloadScript()
+    isLoaded = false
+    enabled = false
+    afkActive = false
+    bagIsFull = false
+    isWaitingForCoins = false
+
+    cleanupConnections()
+    stopNoclip()
+    removeVelocity()
+
+    if targetFinderThread then
+        task.cancel(targetFinderThread)
+        targetFinderThread = nil
+    end
+    if characterAddedConnection then
+        characterAddedConnection:Disconnect()
+        characterAddedConnection = nil
+    end
+
+    activeCoins = {}
+    blacklistedCoins = {}
+    currentTarget = nil
+end
+
+local function loadScript()
+    if isLoaded then unloadScript() end
+    isLoaded = true
+    bagIsFull = false
+    isWaitingForCoins = false
+
+    character = player.Character or player.CharacterAdded:Wait()
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+
+    blacklistedCoins = {}
+    noCoinsStartTime = nil
+    hasCollectedThisLife = false
+
+    startTargetFinder()
+    startMovementEngine()
+
+    if characterAddedConnection then characterAddedConnection:Disconnect() end
+    characterAddedConnection = player.CharacterAdded:Connect(function(newChar)
+        cleanupConnections()
+        removeVelocity()
+
+        character = newChar
+        rootPart = character:WaitForChild("HumanoidRootPart")
+        humanoid = character:WaitForChild("Humanoid")
+
+        blacklistedCoins = {}
+        noCoinsStartTime = nil
+        hasCollectedThisLife = false
+        bagIsFull = false
+        isWaitingForCoins = false
+
+        task.wait(1.5)
+        if isLoaded and enabled then
+            startMovementEngine()
+        end
+    end)
+end
+
+-- =====================================================================
+--  WINTER GUI v2
+-- =====================================================================
+
+local WIN_W, WIN_H = 320, 200
+local rng = Random.new()
+
+local function make(class, parent, props)
+    local inst = Instance.new(class)
+    for key, value in pairs(props) do
+        inst[key] = value
+    end
+    inst.Parent = parent
+    return inst
+end
+
+local function addCorner(parent, radius)
+    return make("UICorner", parent, {CornerRadius = radius})
+end
+
+local function gradient(parent, rotation, colors, transparency)
+    local g = make("UIGradient", parent, {Rotation = rotation, Color = colors})
+    if transparency then g.Transparency = transparency end
+    return g
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoFarmUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Main is the draggable holder: soft glow + the window body live inside it
+local Main = make("Frame", ScreenGui, {
+    Name = "Main",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Size = UDim2.new(0, WIN_W, 0, WIN_H),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+})
+
+local OpenScale = make("UIScale", Main, {Scale = 0.85})
+TweenService:Create(OpenScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
+local function glow(inset, transparency, radius)
+    local g = make("Frame", Main, {
+        Name = "Glow",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(1, inset * 2, 1, inset * 2),
+        BackgroundColor3 = Color3.fromRGB(90, 160, 255),
+        BackgroundTransparency = transparency,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+    })
+    addCorner(g, UDim.new(0, radius))
+end
+glow(14, 0.96, 30)
+glow(8, 0.93, 24)
+glow(3, 0.90, 19)
+
+local Body = make("Frame", Main, {
+    Name = "Body",
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BorderSizePixel = 0,
+    ZIndex = 2,
+})
+addCorner(Body, UDim.new(0, 16))
+
+gradient(Body, 90, ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(8, 14, 36)),
+    ColorSequenceKeypoint.new(0.55, Color3.fromRGB(18, 38, 84)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(38, 78, 128)),
+}))
+
+local BodyStroke = make("UIStroke", Body, {
+    Color = Color3.new(1, 1, 1),
+    Thickness = 2,
+    ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+})
+local StrokeGradient = gradient(BodyStroke, 45, ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(210, 245, 255)),
+    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(90, 150, 255)),
+    ColorSequenceKeypoint.new(0.55, Color3.fromRGB(150, 110, 255)),
+    ColorSequenceKeypoint.new(0.8, Color3.fromRGB(90, 220, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 245, 255)),
+}))
+
+-- northern lights ------------------------------------------------------
+local auroras = {}
+local function makeAurora(color, x, y, w, h, amp, freq, phase)
+    local holder = make("Frame", Body, {
+        Name = "Aurora",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0, x, 0, y),
+        Size = UDim2.new(0, w, 0, h),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+    })
+    for _, layer in ipairs({{1, 0.95}, {0.72, 0.91}, {0.46, 0.86}}) do
+        local blob = make("Frame", holder, {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(layer[1], 0, layer[1], 0),
+            BackgroundColor3 = color,
+            BackgroundTransparency = layer[2],
+            BorderSizePixel = 0,
+        })
+        addCorner(blob, UDim.new(1, 0))
+    end
+    table.insert(auroras, {holder = holder, x = x, y = y, amp = amp, freq = freq, phase = phase})
+end
+makeAurora(Color3.fromRGB(80, 255, 200), 110, 36, 190, 62, 18, 0.35, 0)
+makeAurora(Color3.fromRGB(150, 120, 255), 214, 42, 170, 54, 22, 0.27, 2)
+makeAurora(Color3.fromRGB(80, 170, 255), 160, 28, 230, 44, 14, 0.22, 4)
+
+-- twinkling stars ------------------------------------------------------
+local stars = {}
+for i = 1, 16 do
+    local size = (i % 4 == 0) and 3 or 2
+    local star = make("Frame", Body, {
+        Name = "Star",
+        Size = UDim2.new(0, size, 0, size),
+        Position = UDim2.new(0, rng:NextInteger(20, WIN_W - 20), 0, rng:NextInteger(8, 80)),
+        BackgroundColor3 = Color3.fromRGB(235, 245, 255),
+        BorderSizePixel = 0,
+        ZIndex = 1,
+    })
+    addCorner(star, UDim.new(1, 0))
+    table.insert(stars, {frame = star, freq = rng:NextNumber(0.8, 2.2), phase = rng:NextNumber(0, math.pi * 2)})
+end
+
+-- falling snow: far layer (small, slow) and near layer (bigger, faster) --
+local snowW, snowH = WIN_W - 12, WIN_H - 12
+
+local function makeSnowLayer(zIndex)
+    return make("Frame", Body, {
+        Name = "SnowLayer",
+        Size = UDim2.new(1, -12, 1, -12),
+        Position = UDim2.new(0, 6, 0, 6),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = zIndex,
+    })
+end
+local SnowFar = makeSnowLayer(1)
+local SnowNear = makeSnowLayer(2)
+
+local flakes = {}
+local function spawnFlakes(layer, count, minSize, maxSize, minSpeed, maxSpeed, minAlpha, maxAlpha)
+    for _ = 1, count do
+        local size = rng:NextInteger(minSize, maxSize)
+        local flake = make("Frame", layer, {
+            Name = "Flake",
+            Size = UDim2.new(0, size, 0, size),
+            BackgroundColor3 = Color3.fromRGB(245, 250, 255),
+            BackgroundTransparency = rng:NextNumber(minAlpha, maxAlpha),
+            BorderSizePixel = 0,
+            ZIndex = 1,
+        })
+        addCorner(flake, UDim.new(1, 0))
+        table.insert(flakes, {
+            frame = flake,
+            x = rng:NextNumber(0, snowW),
+            y = rng:NextNumber(0, snowH),
+            speed = rng:NextNumber(minSpeed, maxSpeed),
+            sway = rng:NextNumber(3, 10),
+            freq = rng:NextNumber(0.7, 1.8),
+            phase = rng:NextNumber(0, math.pi * 2),
+        })
+    end
+end
+spawnFlakes(SnowFar, 26, 1, 2, 8, 16, 0.5, 0.8)
+spawnFlakes(SnowNear, 22, 3, 5, 22, 40, 0.2, 0.5)
+
+-- snow cap, icicles and drift ------------------------------------------
+local SNOW_COLOR = Color3.fromRGB(240, 248, 255)
+
+local function snowPiece(x, y, w, h, transparency, radius, color)
+    local piece = make("Frame", Body, {
+        Position = UDim2.new(0, x, 0, y),
+        Size = UDim2.new(0, w, 0, h),
+        BackgroundColor3 = color or SNOW_COLOR,
+        BackgroundTransparency = transparency,
+        BorderSizePixel = 0,
+        ZIndex = 6,
+    })
+    addCorner(piece, radius)
+    return piece
+end
+
+snowPiece(18, 0, WIN_W - 36, 6, 0.05, UDim.new(0, 3))
+for _, b in ipairs({
+    {26, 14, 7}, {58, 10, 5}, {98, 16, 9}, {140, 10, 6},
+    {182, 14, 8}, {226, 18, 10}, {268, 12, 7}, {292, 9, 5},
+}) do
+    snowPiece(b[1], 3, b[2], b[3], 0.05, UDim.new(1, 0))
+end
+
+for _, ic in ipairs({
+    {150, 4, 9}, {168, 5, 13}, {196, 4, 8}, {214, 5, 15}, {236, 4, 10}, {258, 5, 12},
+}) do
+    snowPiece(ic[1], 5, ic[2], ic[3], 0.15, UDim.new(1, 0), Color3.fromRGB(200, 235, 255))
+end
+
+local driftH = 14
+snowPiece(16, WIN_H - driftH, WIN_W - 32, driftH, 0.08, UDim.new(0, 7))
+for _, b in ipairs({
+    {24, 48, 18}, {80, 60, 16}, {150, 50, 20}, {208, 56, 16}, {262, 38, 13},
+}) do
+    snowPiece(b[1], WIN_H - driftH + 6 - b[3], b[2], b[3], 0.08, UDim.new(1, 0))
+end
+
+for _, sp in ipairs({{58, 184}, {176, 180}, {236, 186}}) do
+    local sparkle = make("Frame", Body, {
+        Name = "Sparkle",
+        Size = UDim2.new(0, 3, 0, 3),
+        Position = UDim2.new(0, sp[1], 0, sp[2]),
+        BackgroundColor3 = Color3.fromRGB(150, 215, 255),
+        BorderSizePixel = 0,
+        ZIndex = 7,
+    })
+    addCorner(sparkle, UDim.new(1, 0))
+    table.insert(stars, {frame = sparkle, freq = rng:NextNumber(1.2, 2.6), phase = rng:NextNumber(0, math.pi * 2)})
+end
+
+-- header ----------------------------------------------------------------
+local Header = make("Frame", Body, {
+    Name = "Header",
+    Size = UDim2.new(1, 0, 0, 54),
+    BackgroundTransparency = 1,
+    ZIndex = 3,
+})
+
+local IconBadge = make("Frame", Header, {
+    Size = UDim2.new(0, 34, 0, 34),
+    Position = UDim2.new(0, 14, 0, 10),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BorderSizePixel = 0,
+})
+addCorner(IconBadge, UDim.new(1, 0))
+gradient(IconBadge, 45, ColorSequence.new(Color3.fromRGB(100, 175, 255), Color3.fromRGB(45, 95, 210)))
+make("UIStroke", IconBadge, {Color = Color3.fromRGB(190, 235, 255), Thickness = 1.5, Transparency = 0.25})
+
+local SnowIcon = make("TextLabel", IconBadge, {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "❄",
+    TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 20,
+})
+
+local Title = make("TextLabel", Header, {
+    Size = UDim2.new(0, 160, 0, 20),
+    Position = UDim2.new(0, 56, 0, 12),
+    BackgroundTransparency = 1,
+    Text = "Coin Farm",
+    TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 16,
+    TextXAlignment = Enum.TextXAlignment.Left,
+})
+gradient(Title, 0, ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(160, 220, 255)))
+
+local Subtitle = make("TextLabel", Header, {
+    Size = UDim2.new(0, 160, 0, 14),
+    Position = UDim2.new(0, 56, 0, 31),
+    BackgroundTransparency = 1,
+    Text = "Winter edition",
+    TextColor3 = Color3.fromRGB(140, 190, 245),
+    Font = Enum.Font.Gotham,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+local CloseBtn = make("TextButton", Header, {
+    Size = UDim2.new(0, 26, 0, 26),
+    Position = UDim2.new(1, -38, 0.5, -13),
+    BackgroundColor3 = Color3.fromRGB(235, 87, 110),
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0,
+    AutoButtonColor = false,
+    Text = "X",
+    TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 12,
+})
+addCorner(CloseBtn, UDim.new(1, 0))
+
+CloseBtn.MouseEnter:Connect(function()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 120, 140), BackgroundTransparency = 0}):Play()
+end)
+CloseBtn.MouseLeave:Connect(function()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(235, 87, 110), BackgroundTransparency = 0.1}):Play()
+end)
+
+local Divider = make("Frame", Body, {
+    Size = UDim2.new(1, -36, 0, 1),
+    Position = UDim2.new(0, 18, 0, 54),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BorderSizePixel = 0,
+    ZIndex = 3,
+})
+gradient(Divider, 0, ColorSequence.new(Color3.fromRGB(150, 210, 255)), NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 1),
+    NumberSequenceKeypoint.new(0.5, 0.5),
+    NumberSequenceKeypoint.new(1, 1),
+}))
+
+-- animation loop (snow, stars, aurora, shimmering border, spinning icon) --
+local animStart = os.clock()
+local animConnection = RunService.Heartbeat:Connect(function(dt)
+    local t = os.clock() - animStart
+
+    for _, f in ipairs(flakes) do
+        f.y += f.speed * dt
+        if f.y > snowH + 6 then
+            f.y = -6
+            f.x = rng:NextNumber(0, snowW)
+        end
+        f.frame.Position = UDim2.new(0, f.x + math.sin(t * f.freq + f.phase) * f.sway, 0, f.y)
+    end
+
+    for _, s in ipairs(stars) do
+        s.frame.BackgroundTransparency = 0.25 + 0.6 * (0.5 + 0.5 * math.sin(t * s.freq + s.phase))
+    end
+
+    for _, a in ipairs(auroras) do
+        a.holder.Position = UDim2.new(0, a.x + math.sin(t * a.freq + a.phase) * a.amp, 0, a.y + math.sin(t * a.freq * 0.7 + a.phase) * 4)
+    end
+
+    StrokeGradient.Rotation = (t * 40) % 360
+    SnowIcon.Rotation = (t * 24) % 360
+end)
+
+ScreenGui.Destroying:Connect(function()
+    animConnection:Disconnect()
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    animConnection:Disconnect()
+    unloadScript()
+    ScreenGui:Destroy()
+end)
+
+-- rows ------------------------------------------------------------------
+local ROW_STROKE_OFF = Color3.fromRGB(150, 210, 255)
+local ROW_STROKE_ON = Color3.fromRGB(120, 235, 255)
+
+local function createRow(labelText, subText, glyph, colorA, colorB, yPos)
+    local row = make("Frame", Body, {
+        Size = UDim2.new(1, -28, 0, 44),
+        Position = UDim2.new(0, 14, 0, yPos),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.92,
+        BorderSizePixel = 0,
+        ZIndex = 4,
+    })
+    addCorner(row, UDim.new(0, 12))
+    make("UIStroke", row, {Name = "RowStroke", Color = ROW_STROKE_OFF, Thickness = 1.5, Transparency = 0.55})
+
+    local badge = make("Frame", row, {
+        Size = UDim2.new(0, 30, 0, 30),
+        Position = UDim2.new(0, 8, 0, 7),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+    })
+    addCorner(badge, UDim.new(0, 9))
+    gradient(badge, 45, ColorSequence.new(colorA, colorB))
+    make("TextLabel", badge, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = glyph,
+        TextColor3 = Color3.fromRGB(20, 30, 60),
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+    })
+
+    make("TextLabel", row, {
+        Size = UDim2.new(0, 150, 0, 18),
+        Position = UDim2.new(0, 48, 0, 6),
+        BackgroundTransparency = 1,
+        Text = labelText,
+        TextColor3 = Color3.fromRGB(235, 244, 255),
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+    make("TextLabel", row, {
+        Size = UDim2.new(0, 150, 0, 14),
+        Position = UDim2.new(0, 48, 0, 24),
+        BackgroundTransparency = 1,
+        Text = subText,
+        TextColor3 = Color3.fromRGB(140, 185, 235),
+        Font = Enum.Font.Gotham,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    return row
+end
+
+local Row1 = createRow("Auto Farm", "Collects coins", "$", Color3.fromRGB(255, 205, 90), Color3.fromRGB(255, 150, 60), 62)
+local Row2 = createRow("Anti-AFK", "Prevents idle kick", "Zz", Color3.fromRGB(170, 140, 255), Color3.fromRGB(110, 100, 230), 114)
+
+local TOGGLE_OFF = Color3.fromRGB(38, 52, 90)
+local TOGGLE_ON = Color3.fromRGB(110, 225, 255)
+
+local function createToggle(parent, initialVal, callback)
+    local toggle = make("TextButton", parent, {
+        Size = UDim2.new(0, 50, 0, 26),
+        Position = UDim2.new(1, -62, 0.5, -13),
+        BackgroundColor3 = initialVal and TOGGLE_ON or TOGGLE_OFF,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "",
+    })
+    addCorner(toggle, UDim.new(1, 0))
+    gradient(toggle, 90, ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 225, 255)))
+
+    local toggleStroke = make("UIStroke", toggle, {
+        Color = Color3.fromRGB(150, 230, 255),
+        Thickness = 1.5,
+        Transparency = initialVal and 0.25 or 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
+
+    local knob = make("Frame", toggle, {
+        Size = UDim2.new(0, 20, 0, 20),
+        Position = initialVal and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+    })
+    addCorner(knob, UDim.new(1, 0))
+
+    local rowStroke = parent:FindFirstChild("RowStroke")
+
+    local state = initialVal
+    toggle.MouseButton1Click:Connect(function()
+        state = not state
+        local goalPos = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
+        local goalBg = state and TOGGLE_ON or TOGGLE_OFF
+        TweenService:Create(toggle, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundColor3 = goalBg}):Play()
+        TweenService:Create(knob, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = goalPos}):Play()
+        TweenService:Create(toggleStroke, TweenInfo.new(0.18), {Transparency = state and 0.25 or 1}):Play()
+        if rowStroke then
+            TweenService:Create(rowStroke, TweenInfo.new(0.18), {
+                Color = state and ROW_STROKE_ON or ROW_STROKE_OFF,
+                Transparency = state and 0.15 or 0.55,
+            }):Play()
+        end
+        callback(state)
+    end)
+    return toggle
+end
+
+createToggle(Row1, false, function(state)
+    enabled = state
+    if state then
+        if not isLoaded then loadScript() end
+        startMovementEngine()
+        if afkActive then task.spawn(antiAfkLoop) end
+    else
+        stopMovement()
+        stopNoclip()
+        noCoinsStartTime = nil
+    end
+end)
+
+createToggle(Row2, false, function(state)
+    afkActive = state
+    if state and enabled then task.spawn(antiAfkLoop) end
+end)
+
+local dragging, dragStart, startPos = false, nil, nil
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+    end
+end)
+Header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+loadScript()
