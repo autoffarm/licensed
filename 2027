@@ -26,7 +26,7 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
 local gameplayRemotes = remotes and remotes:WaitForChild("Gameplay", 5)
 -- config
 local MAX_DIST = 1000
-local TARGET_SPEED = 23
+local TARGET_SPEED = 28
 local RESET_DELAY = 5.0
 local ROUND_START_DELAY = 1.5
 -- end of the config
