@@ -7,7 +7,7 @@
 --   • Treat fake Roblox login / "claim reward" pages as phishing.
 -- [[ End Rscripts Risk Notice ]]
 -- made by god6767
--- Winter GUI v2: only the interface look was changed, farm logic is untouched
+-- Halloween GUI v2 (Haunted edition): only the interface look was changed, farm logic is untouched
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -423,12 +423,16 @@ local function loadScript()
     end)
 end
 
+
 -- =====================================================================
---  WINTER GUI v2
+--  HALLOWEEN GUI v2 - HAUNTED EDITION
 -- =====================================================================
 
-local WIN_W, WIN_H = 320, 200
+local WIN_W, WIN_H = 360, 270
 local rng = Random.new()
+
+local ORANGE = Color3.fromRGB(255, 120, 20)
+local PURPLE = Color3.fromRGB(150, 70, 230)
 
 local function make(class, parent, props)
     local inst = Instance.new(class)
@@ -449,13 +453,42 @@ local function gradient(parent, rotation, colors, transparency)
     return g
 end
 
+-- draws a straight line between two points using a rotated frame
+local function line(parent, x1, y1, x2, y2, thick, color, transparency, z)
+    local dx, dy = x2 - x1, y2 - y1
+    local len = math.sqrt(dx * dx + dy * dy)
+    return make("Frame", parent, {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0, (x1 + x2) / 2, 0, (y1 + y2) / 2),
+        Size = UDim2.new(0, len, 0, thick),
+        Rotation = math.deg(math.atan2(dy, dx)),
+        BackgroundColor3 = color,
+        BackgroundTransparency = transparency,
+        BorderSizePixel = 0,
+        ZIndex = z or 1,
+    })
+end
+
+local function block(parent, x, y, w, h, color, transparency, radius, z)
+    local f = make("Frame", parent, {
+        Position = UDim2.new(0, x, 0, y),
+        Size = UDim2.new(0, w, 0, h),
+        BackgroundColor3 = color,
+        BackgroundTransparency = transparency,
+        BorderSizePixel = 0,
+        ZIndex = z or 1,
+    })
+    if radius then addCorner(f, radius) end
+    return f
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoFarmUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Main is the draggable holder: soft glow + the window body live inside it
+-- Main is the draggable holder: pulsing glow + the window body live inside it
 local Main = make("Frame", ScreenGui, {
     Name = "Main",
     AnchorPoint = Vector2.new(0.5, 0.5),
@@ -465,59 +498,111 @@ local Main = make("Frame", ScreenGui, {
     BorderSizePixel = 0,
 })
 
-local OpenScale = make("UIScale", Main, {Scale = 0.85})
-TweenService:Create(OpenScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+local OpenScale = make("UIScale", Main, {Scale = 0.8})
+TweenService:Create(OpenScale, TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
+local glows = {}
 local function glow(inset, transparency, radius)
     local g = make("Frame", Main, {
         Name = "Glow",
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         Size = UDim2.new(1, inset * 2, 1, inset * 2),
-        BackgroundColor3 = Color3.fromRGB(90, 160, 255),
+        BackgroundColor3 = ORANGE,
         BackgroundTransparency = transparency,
         BorderSizePixel = 0,
         ZIndex = 1,
     })
     addCorner(g, UDim.new(0, radius))
+    table.insert(glows, {frame = g, base = transparency})
 end
-glow(14, 0.96, 30)
-glow(8, 0.93, 24)
-glow(3, 0.90, 19)
+glow(18, 0.965, 34)
+glow(11, 0.94, 27)
+glow(6, 0.91, 22)
+glow(2, 0.87, 18)
 
 local Body = make("Frame", Main, {
     Name = "Body",
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0,
     BorderSizePixel = 0,
     ZIndex = 2,
 })
 addCorner(Body, UDim.new(0, 16))
 
 gradient(Body, 90, ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(8, 14, 36)),
-    ColorSequenceKeypoint.new(0.55, Color3.fromRGB(18, 38, 84)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(38, 78, 128)),
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(8, 4, 16)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(32, 12, 46)),
+    ColorSequenceKeypoint.new(0.85, Color3.fromRGB(66, 24, 30)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(88, 34, 18)),
 }))
 
 local BodyStroke = make("UIStroke", Body, {
     Color = Color3.new(1, 1, 1),
-    Thickness = 2,
+    Thickness = 2.5,
     ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 })
 local StrokeGradient = gradient(BodyStroke, 45, ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(210, 245, 255)),
-    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(90, 150, 255)),
-    ColorSequenceKeypoint.new(0.55, Color3.fromRGB(150, 110, 255)),
-    ColorSequenceKeypoint.new(0.8, Color3.fromRGB(90, 220, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 245, 255)),
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 180, 40)),
+    ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 90, 20)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(170, 80, 240)),
+    ColorSequenceKeypoint.new(0.75, Color3.fromRGB(120, 235, 70)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 180, 40)),
 }))
 
--- northern lights ------------------------------------------------------
+-- =====================================================================
+--  background scene (everything here sits behind the controls)
+-- =====================================================================
+local Scene = make("Frame", Body, {
+    Name = "Scene",
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 1,
+})
+
+-- moon
+local moonHolder = make("Frame", Scene, {
+    Name = "Moon",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0, 288, 0, 118),
+    Size = UDim2.new(0, 84, 0, 84),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ZIndex = 1,
+})
+local moonRings = {}
+for _, layer in ipairs({{1.9, 0.97}, {1.6, 0.95}, {1.3, 0.92}, {1, 0.84}}) do
+    local ring = make("Frame", moonHolder, {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(layer[1], 0, layer[1], 0),
+        BackgroundColor3 = Color3.fromRGB(255, 225, 150),
+        BackgroundTransparency = layer[2],
+        BorderSizePixel = 0,
+    })
+    addCorner(ring, UDim.new(1, 0))
+    table.insert(moonRings, {frame = ring, base = layer[2]})
+end
+for _, c in ipairs({{0.30, 0.32, 0.16}, {0.64, 0.55, 0.21}, {0.40, 0.72, 0.11}, {0.68, 0.28, 0.09}}) do
+    local crater = make("Frame", moonHolder, {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(c[1], 0, c[2], 0),
+        Size = UDim2.new(c[3], 0, c[3], 0),
+        BackgroundColor3 = Color3.fromRGB(200, 160, 90),
+        BackgroundTransparency = 0.86,
+        BorderSizePixel = 0,
+    })
+    addCorner(crater, UDim.new(1, 0))
+end
+
+-- drifting fog
 local auroras = {}
 local function makeAurora(color, x, y, w, h, amp, freq, phase)
-    local holder = make("Frame", Body, {
-        Name = "Aurora",
+    local holder = make("Frame", Scene, {
+        Name = "Fog",
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0, x, 0, y),
         Size = UDim2.new(0, w, 0, h),
@@ -538,32 +623,142 @@ local function makeAurora(color, x, y, w, h, amp, freq, phase)
     end
     table.insert(auroras, {holder = holder, x = x, y = y, amp = amp, freq = freq, phase = phase})
 end
-makeAurora(Color3.fromRGB(80, 255, 200), 110, 36, 190, 62, 18, 0.35, 0)
-makeAurora(Color3.fromRGB(150, 120, 255), 214, 42, 170, 54, 22, 0.27, 2)
-makeAurora(Color3.fromRGB(80, 170, 255), 160, 28, 230, 44, 14, 0.22, 4)
+makeAurora(Color3.fromRGB(150, 70, 230), 120, 46, 230, 70, 20, 0.35, 0)
+makeAurora(Color3.fromRGB(110, 230, 70), 250, 54, 200, 56, 24, 0.27, 2)
+makeAurora(Color3.fromRGB(255, 120, 30), 190, 32, 280, 46, 16, 0.22, 4)
+makeAurora(Color3.fromRGB(110, 230, 70), 180, 246, 340, 44, 26, 0.18, 1)
+makeAurora(Color3.fromRGB(150, 70, 230), 90, 232, 220, 36, 18, 0.25, 3)
 
--- twinkling stars ------------------------------------------------------
-local stars = {}
-for i = 1, 16 do
-    local size = (i % 4 == 0) and 3 or 2
-    local star = make("Frame", Body, {
-        Name = "Star",
-        Size = UDim2.new(0, size, 0, size),
-        Position = UDim2.new(0, rng:NextInteger(20, WIN_W - 20), 0, rng:NextInteger(8, 80)),
-        BackgroundColor3 = Color3.fromRGB(235, 245, 255),
+-- clouds sliding over the moon
+local clouds = {}
+for _, c in ipairs({{0, 98, 120, 22, 18}, {170, 128, 90, 16, 12}, {320, 108, 140, 20, 24}}) do
+    local cloud = make("Frame", Scene, {
+        Name = "Cloud",
+        Position = UDim2.new(0, c[1], 0, c[2]),
+        Size = UDim2.new(0, c[3], 0, c[4]),
+        BackgroundColor3 = Color3.fromRGB(36, 20, 54),
+        BackgroundTransparency = 0.4,
         BorderSizePixel = 0,
-        ZIndex = 1,
+        ZIndex = 2,
+    })
+    addCorner(cloud, UDim.new(1, 0))
+    table.insert(clouds, {frame = cloud, x = c[1], y = c[2], w = c[3], speed = c[5]})
+end
+
+-- lightning bolt (only visible during a flash)
+local boltPieces = {}
+local boltPoints = {{214, 8}, {200, 40}, {212, 46}, {190, 88}}
+for i = 1, #boltPoints - 1 do
+    local a, b = boltPoints[i], boltPoints[i + 1]
+    local piece = line(Scene, a[1], a[2], b[1], b[2], 2, Color3.fromRGB(235, 225, 255), 1, 2)
+    table.insert(boltPieces, piece)
+end
+
+-- cobweb in the top-right corner
+local webC = {WIN_W - 9, 9}
+local webAngles = {0, 22, 45, 68, 90}
+local function webPoint(angle, r)
+    local a = math.rad(angle)
+    return webC[1] - math.sin(a) * r, webC[2] + math.cos(a) * r
+end
+for _, ang in ipairs(webAngles) do
+    local x2, y2 = webPoint(ang, 54)
+    line(Scene, webC[1], webC[2], x2, y2, 1, Color3.fromRGB(230, 230, 245), 0.7, 3)
+end
+for _, r in ipairs({14, 28, 42}) do
+    for i = 1, #webAngles - 1 do
+        local x1, y1 = webPoint(webAngles[i], r)
+        local x2, y2 = webPoint(webAngles[i + 1], r)
+        line(Scene, x1, y1, x2, y2, 1, Color3.fromRGB(230, 230, 245), 0.76, 3)
+    end
+end
+
+-- twinkling fireflies
+local stars = {}
+for i = 1, 22 do
+    local size = (i % 4 == 0) and 3 or 2
+    local star = make("Frame", Scene, {
+        Name = "Firefly",
+        Size = UDim2.new(0, size, 0, size),
+        Position = UDim2.new(0, rng:NextInteger(20, WIN_W - 20), 0, rng:NextInteger(8, WIN_H - 70)),
+        BackgroundColor3 = (i % 3 == 0) and Color3.fromRGB(150, 255, 100) or Color3.fromRGB(255, 200, 90),
+        BorderSizePixel = 0,
+        ZIndex = 3,
     })
     addCorner(star, UDim.new(1, 0))
     table.insert(stars, {frame = star, freq = rng:NextNumber(0.8, 2.2), phase = rng:NextNumber(0, math.pi * 2)})
 end
 
--- falling snow: far layer (small, slow) and near layer (bigger, faster) --
+-- graveyard: ground, tombstones, dead tree, haunted house -------------------
+local DARK = Color3.fromRGB(20, 12, 30)
+local DARKER = Color3.fromRGB(13, 7, 20)
+local TOMB = Color3.fromRGB(34, 22, 48)
+local groundTop = WIN_H - 14
+
+block(Scene, 16, groundTop, WIN_W - 32, 14, DARKER, 0.02, UDim.new(0, 7), 3)
+
+for _, t in ipairs({{84, 16, 22}, {130, 14, 17}, {176, 18, 24}, {214, 14, 18}}) do
+    block(Scene, t[1], groundTop + 6 - t[3], t[2], t[3], TOMB, 0.02, UDim.new(0, 6), 3)
+end
+-- small crosses on two graves
+block(Scene, 91, groundTop - 12, 2, 8, Color3.fromRGB(70, 50, 95), 0.2, nil, 3)
+block(Scene, 88, groundTop - 9, 8, 2, Color3.fromRGB(70, 50, 95), 0.2, nil, 3)
+block(Scene, 184, groundTop - 14, 2, 9, Color3.fromRGB(70, 50, 95), 0.2, nil, 3)
+block(Scene, 181, groundTop - 11, 8, 2, Color3.fromRGB(70, 50, 95), 0.2, nil, 3)
+
+-- dead tree
+local TREE = Color3.fromRGB(22, 12, 32)
+line(Scene, 32, groundTop + 4, 35, groundTop - 36, 5, TREE, 0, 3)
+line(Scene, 34, groundTop - 20, 16, groundTop - 34, 3, TREE, 0, 3)
+line(Scene, 34, groundTop - 20, 52, groundTop - 30, 3, TREE, 0, 3)
+line(Scene, 35, groundTop - 32, 22, groundTop - 48, 3, TREE, 0, 3)
+line(Scene, 35, groundTop - 32, 50, groundTop - 44, 3, TREE, 0, 3)
+line(Scene, 22, groundTop - 48, 14, groundTop - 56, 2, TREE, 0, 3)
+line(Scene, 50, groundTop - 44, 58, groundTop - 53, 2, TREE, 0, 3)
+
+-- haunted house
+block(Scene, 256, groundTop - 24, 68, 28, DARK, 0, nil, 3)
+block(Scene, 264, groundTop - 34, 52, 12, DARK, 0, nil, 3)
+block(Scene, 273, groundTop - 42, 34, 10, DARK, 0, nil, 3)
+line(Scene, 252, groundTop - 24, 290, groundTop - 45, 8, DARK, 0, 3)
+line(Scene, 290, groundTop - 45, 328, groundTop - 24, 8, DARK, 0, 3)
+block(Scene, 306, groundTop - 50, 8, 16, DARK, 0, nil, 3)
+block(Scene, 285, groundTop - 14, 9, 18, DARKER, 0, UDim.new(0, 3), 4)
+
+local windows = {}
+for _, w in ipairs({{264, groundTop - 18, 8, 9}, {306, groundTop - 18, 8, 9}, {286, groundTop - 33, 8, 10}}) do
+    local win = block(Scene, w[1], w[2], w[3], w[4], Color3.fromRGB(255, 175, 50), 0.1, UDim.new(0, 2), 4)
+    table.insert(windows, {frame = win, freq = rng:NextNumber(2.5, 5), phase = rng:NextNumber(0, 6)})
+end
+
+-- jack-o-lanterns with a pulsing glow
+local pulses = {}
+local function jackOLantern(x)
+    local halo = block(Scene, x - 8, groundTop - 14, 34, 28, Color3.fromRGB(255, 140, 30), 0.85, UDim.new(1, 0), 3)
+    table.insert(pulses, {frame = halo, base = 0.84, amp = 0.07, freq = rng:NextNumber(2, 3.5), phase = rng:NextNumber(0, 6)})
+    make("TextLabel", Scene, {
+        Position = UDim2.new(0, x, 0, groundTop - 14),
+        Size = UDim2.new(0, 18, 0, 18),
+        BackgroundTransparency = 1,
+        Text = "🎃",
+        TextSize = 15,
+        ZIndex = 4,
+    })
+end
+jackOLantern(150)
+jackOLantern(232)
+
+for _, sp in ipairs({{64, groundTop + 4}, {112, groundTop + 1}, {200, groundTop + 3}, {246, groundTop - 6}}) do
+    local wisp = block(Scene, sp[1], sp[2], 3, 3, Color3.fromRGB(150, 255, 110), 0, UDim.new(1, 0), 4)
+    table.insert(stars, {frame = wisp, freq = rng:NextNumber(1.2, 2.6), phase = rng:NextNumber(0, math.pi * 2)})
+end
+
+-- rising embers: far layer (small, slow) and near layer (bigger, faster)
 local snowW, snowH = WIN_W - 12, WIN_H - 12
 
 local function makeSnowLayer(zIndex)
-    return make("Frame", Body, {
-        Name = "SnowLayer",
+    return make("Frame", Scene, {
+        Name = "EmberLayer",
         Size = UDim2.new(1, -12, 1, -12),
         Position = UDim2.new(0, 6, 0, 6),
         BackgroundTransparency = 1,
@@ -572,17 +767,25 @@ local function makeSnowLayer(zIndex)
         ZIndex = zIndex,
     })
 end
-local SnowFar = makeSnowLayer(1)
-local SnowNear = makeSnowLayer(2)
+local SnowFar = makeSnowLayer(5)
+local SnowNear = makeSnowLayer(6)
+
+local emberColors = {
+    Color3.fromRGB(255, 160, 40),
+    Color3.fromRGB(255, 110, 30),
+    Color3.fromRGB(255, 210, 90),
+    Color3.fromRGB(190, 120, 255),
+    Color3.fromRGB(150, 255, 100),
+}
 
 local flakes = {}
 local function spawnFlakes(layer, count, minSize, maxSize, minSpeed, maxSpeed, minAlpha, maxAlpha)
     for _ = 1, count do
         local size = rng:NextInteger(minSize, maxSize)
         local flake = make("Frame", layer, {
-            Name = "Flake",
+            Name = "Ember",
             Size = UDim2.new(0, size, 0, size),
-            BackgroundColor3 = Color3.fromRGB(245, 250, 255),
+            BackgroundColor3 = emberColors[rng:NextInteger(1, #emberColors)],
             BackgroundTransparency = rng:NextNumber(minAlpha, maxAlpha),
             BorderSizePixel = 0,
             ZIndex = 1,
@@ -599,105 +802,176 @@ local function spawnFlakes(layer, count, minSize, maxSize, minSpeed, maxSpeed, m
         })
     end
 end
-spawnFlakes(SnowFar, 26, 1, 2, 8, 16, 0.5, 0.8)
-spawnFlakes(SnowNear, 22, 3, 5, 22, 40, 0.2, 0.5)
+spawnFlakes(SnowFar, 30, 1, 2, 8, 16, 0.5, 0.8)
+spawnFlakes(SnowNear, 20, 3, 4, 20, 36, 0.25, 0.55)
 
--- snow cap, icicles and drift ------------------------------------------
-local SNOW_COLOR = Color3.fromRGB(240, 248, 255)
+-- =====================================================================
+--  flying layer: bats and ghosts (above the controls, never blocks clicks)
+-- =====================================================================
+local Fly = make("Frame", Body, {
+    Name = "Fly",
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 5,
+})
 
-local function snowPiece(x, y, w, h, transparency, radius, color)
-    local piece = make("Frame", Body, {
-        Position = UDim2.new(0, x, 0, y),
-        Size = UDim2.new(0, w, 0, h),
-        BackgroundColor3 = color or SNOW_COLOR,
-        BackgroundTransparency = transparency,
-        BorderSizePixel = 0,
-        ZIndex = 6,
+local bats = {}
+for _, b in ipairs({{120, 98, 70, 0.9}, {250, 152, 70, 1.3}, {90, 214, 50, 0.7}, {200, 40, 44, 1.1}}) do
+    local bat = make("TextLabel", Fly, {
+        Name = "Bat",
+        Size = UDim2.new(0, 18, 0, 18),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0, b[1], 0, b[2]),
+        BackgroundTransparency = 1,
+        Text = "🦇",
+        TextSize = 14,
+        TextColor3 = Color3.fromRGB(30, 20, 40),
+        ZIndex = 1,
     })
-    addCorner(piece, radius)
-    return piece
+    table.insert(bats, {frame = bat, cx = b[1], cy = b[2], range = b[3], freq = b[4], phase = rng:NextNumber(0, math.pi * 2)})
 end
 
-snowPiece(18, 0, WIN_W - 36, 6, 0.05, UDim.new(0, 3))
+local ghosts = {}
+for _, g in ipairs({{196, 24, 36, 0.4}, {128, 218, 30, 0.33}}) do
+    local ghost = make("TextLabel", Fly, {
+        Name = "Ghost",
+        Size = UDim2.new(0, 26, 0, 26),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0, g[1], 0, g[2]),
+        BackgroundTransparency = 1,
+        Text = "👻",
+        TextSize = 20,
+        TextTransparency = 0.5,
+        ZIndex = 1,
+    })
+    table.insert(ghosts, {frame = ghost, cx = g[1], cy = g[2], range = g[3], freq = g[4], phase = rng:NextNumber(0, math.pi * 2)})
+end
+
+-- lightning flash overlay
+local Flash = make("Frame", Body, {
+    Name = "Flash",
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.fromRGB(235, 225, 255),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ZIndex = 20,
+})
+addCorner(Flash, UDim.new(0, 16))
+
+-- =====================================================================
+--  slime top with animated drips
+-- =====================================================================
+local SLIME_COLOR = Color3.fromRGB(120, 225, 70)
+local SLIME_PURPLE = Color3.fromRGB(110, 40, 160)
+
+block(Body, 18, 0, WIN_W - 36, 6, SLIME_PURPLE, 0.05, UDim.new(0, 3), 6)
 for _, b in ipairs({
     {26, 14, 7}, {58, 10, 5}, {98, 16, 9}, {140, 10, 6},
-    {182, 14, 8}, {226, 18, 10}, {268, 12, 7}, {292, 9, 5},
+    {182, 14, 8}, {222, 12, 7}, {250, 10, 6}, {316, 12, 7},
 }) do
-    snowPiece(b[1], 3, b[2], b[3], 0.05, UDim.new(1, 0))
+    block(Body, b[1], 3, b[2], b[3], SLIME_PURPLE, 0.05, UDim.new(1, 0), 6)
 end
 
-for _, ic in ipairs({
-    {150, 4, 9}, {168, 5, 13}, {196, 4, 8}, {214, 5, 15}, {236, 4, 10}, {258, 5, 12},
+local drips = {}
+for _, d in ipairs({
+    {30, 4, 12}, {100, 5, 16}, {142, 4, 9}, {186, 5, 14}, {226, 4, 10}, {254, 4, 8}, {318, 5, 12},
 }) do
-    snowPiece(ic[1], 5, ic[2], ic[3], 0.15, UDim.new(1, 0), Color3.fromRGB(200, 235, 255))
+    local drip = block(Body, d[1], 5, d[2], d[3], SLIME_COLOR, 0.08, UDim.new(1, 0), 6)
+    table.insert(drips, {frame = drip, w = d[2], base = d[3], freq = rng:NextNumber(0.5, 1.1), phase = rng:NextNumber(0, 6)})
 end
 
-local driftH = 14
-snowPiece(16, WIN_H - driftH, WIN_W - 32, driftH, 0.08, UDim.new(0, 7))
-for _, b in ipairs({
-    {24, 48, 18}, {80, 60, 16}, {150, 50, 20}, {208, 56, 16}, {262, 38, 13},
-}) do
-    snowPiece(b[1], WIN_H - driftH + 6 - b[3], b[2], b[3], 0.08, UDim.new(1, 0))
-end
+-- hanging spider
+local SpiderThread = make("Frame", Body, {
+    Name = "SpiderThread",
+    Size = UDim2.new(0, 1, 0, 20),
+    Position = UDim2.new(0, 292, 0, 0),
+    BackgroundColor3 = Color3.fromRGB(220, 220, 235),
+    BackgroundTransparency = 0.35,
+    BorderSizePixel = 0,
+    ZIndex = 6,
+})
+local Spider = make("TextLabel", Body, {
+    Name = "Spider",
+    Size = UDim2.new(0, 16, 0, 16),
+    Position = UDim2.new(0, 285, 0, 20),
+    BackgroundTransparency = 1,
+    Text = "🕷",
+    TextSize = 13,
+    TextColor3 = Color3.fromRGB(240, 240, 250),
+    ZIndex = 6,
+})
 
-for _, sp in ipairs({{58, 184}, {176, 180}, {236, 186}}) do
-    local sparkle = make("Frame", Body, {
-        Name = "Sparkle",
-        Size = UDim2.new(0, 3, 0, 3),
-        Position = UDim2.new(0, sp[1], 0, sp[2]),
-        BackgroundColor3 = Color3.fromRGB(150, 215, 255),
-        BorderSizePixel = 0,
-        ZIndex = 7,
-    })
-    addCorner(sparkle, UDim.new(1, 0))
-    table.insert(stars, {frame = sparkle, freq = rng:NextNumber(1.2, 2.6), phase = rng:NextNumber(0, math.pi * 2)})
-end
-
--- header ----------------------------------------------------------------
+-- =====================================================================
+--  header
+-- =====================================================================
 local Header = make("Frame", Body, {
     Name = "Header",
-    Size = UDim2.new(1, 0, 0, 54),
+    Size = UDim2.new(1, 0, 0, 58),
     BackgroundTransparency = 1,
     ZIndex = 3,
 })
 
+local IconRing = make("Frame", Header, {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Size = UDim2.new(0, 46, 0, 46),
+    Position = UDim2.new(0, 31, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(255, 140, 30),
+    BackgroundTransparency = 0.85,
+    BorderSizePixel = 0,
+})
+addCorner(IconRing, UDim.new(1, 0))
+
 local IconBadge = make("Frame", Header, {
-    Size = UDim2.new(0, 34, 0, 34),
-    Position = UDim2.new(0, 14, 0, 10),
+    Size = UDim2.new(0, 36, 0, 36),
+    Position = UDim2.new(0, 13, 0, 12),
     BackgroundColor3 = Color3.new(1, 1, 1),
     BorderSizePixel = 0,
 })
 addCorner(IconBadge, UDim.new(1, 0))
-gradient(IconBadge, 45, ColorSequence.new(Color3.fromRGB(100, 175, 255), Color3.fromRGB(45, 95, 210)))
-make("UIStroke", IconBadge, {Color = Color3.fromRGB(190, 235, 255), Thickness = 1.5, Transparency = 0.25})
+gradient(IconBadge, 45, ColorSequence.new(Color3.fromRGB(255, 170, 50), Color3.fromRGB(210, 70, 10)))
+make("UIStroke", IconBadge, {Color = Color3.fromRGB(255, 210, 120), Thickness = 1.5, Transparency = 0.2})
 
 local SnowIcon = make("TextLabel", IconBadge, {
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
-    Text = "❄",
+    Text = "🎃",
     TextColor3 = Color3.new(1, 1, 1),
     Font = Enum.Font.GothamBold,
-    TextSize = 20,
+    TextSize = 22,
+})
+
+local TitleShadow = make("TextLabel", Header, {
+    Size = UDim2.new(0, 170, 0, 22),
+    Position = UDim2.new(0, 59, 0, 14),
+    BackgroundTransparency = 1,
+    Text = "Coin Farm",
+    TextColor3 = Color3.fromRGB(130, 60, 220),
+    TextTransparency = 0.45,
+    Font = Enum.Font.GothamBold,
+    TextSize = 18,
+    TextXAlignment = Enum.TextXAlignment.Left,
 })
 
 local Title = make("TextLabel", Header, {
-    Size = UDim2.new(0, 160, 0, 20),
-    Position = UDim2.new(0, 56, 0, 12),
+    Size = UDim2.new(0, 170, 0, 22),
+    Position = UDim2.new(0, 57, 0, 12),
     BackgroundTransparency = 1,
     Text = "Coin Farm",
     TextColor3 = Color3.new(1, 1, 1),
     Font = Enum.Font.GothamBold,
-    TextSize = 16,
+    TextSize = 18,
     TextXAlignment = Enum.TextXAlignment.Left,
 })
-gradient(Title, 0, ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(160, 220, 255)))
+gradient(Title, 0, ColorSequence.new(Color3.fromRGB(255, 205, 80), Color3.fromRGB(255, 100, 25)))
 
 local Subtitle = make("TextLabel", Header, {
-    Size = UDim2.new(0, 160, 0, 14),
-    Position = UDim2.new(0, 56, 0, 31),
+    Size = UDim2.new(0, 170, 0, 14),
+    Position = UDim2.new(0, 57, 0, 35),
     BackgroundTransparency = 1,
-    Text = "Winter edition",
-    TextColor3 = Color3.fromRGB(140, 190, 245),
+    Text = "Haunted edition",
+    TextColor3 = Color3.fromRGB(190, 140, 245),
     Font = Enum.Font.Gotham,
     TextSize = 11,
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -706,7 +980,7 @@ local Subtitle = make("TextLabel", Header, {
 local CloseBtn = make("TextButton", Header, {
     Size = UDim2.new(0, 26, 0, 26),
     Position = UDim2.new(1, -38, 0.5, -13),
-    BackgroundColor3 = Color3.fromRGB(235, 87, 110),
+    BackgroundColor3 = Color3.fromRGB(150, 60, 220),
     BackgroundTransparency = 0.1,
     BorderSizePixel = 0,
     AutoButtonColor = false,
@@ -716,73 +990,97 @@ local CloseBtn = make("TextButton", Header, {
     TextSize = 12,
 })
 addCorner(CloseBtn, UDim.new(1, 0))
+make("UIStroke", CloseBtn, {Color = Color3.fromRGB(210, 160, 255), Thickness = 1, Transparency = 0.5})
 
 CloseBtn.MouseEnter:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 120, 140), BackgroundTransparency = 0}):Play()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(235, 70, 60), BackgroundTransparency = 0}):Play()
 end)
 CloseBtn.MouseLeave:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(235, 87, 110), BackgroundTransparency = 0.1}):Play()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(150, 60, 220), BackgroundTransparency = 0.1}):Play()
 end)
 
 local Divider = make("Frame", Body, {
     Size = UDim2.new(1, -36, 0, 1),
-    Position = UDim2.new(0, 18, 0, 54),
+    Position = UDim2.new(0, 18, 0, 58),
     BackgroundColor3 = Color3.new(1, 1, 1),
     BorderSizePixel = 0,
     ZIndex = 3,
 })
-gradient(Divider, 0, ColorSequence.new(Color3.fromRGB(150, 210, 255)), NumberSequence.new({
+gradient(Divider, 0, ColorSequence.new(Color3.fromRGB(255, 150, 50)), NumberSequence.new({
     NumberSequenceKeypoint.new(0, 1),
-    NumberSequenceKeypoint.new(0.5, 0.5),
+    NumberSequenceKeypoint.new(0.5, 0.4),
     NumberSequenceKeypoint.new(1, 1),
 }))
 
--- animation loop (snow, stars, aurora, shimmering border, spinning icon) --
-local animStart = os.clock()
-local animConnection = RunService.Heartbeat:Connect(function(dt)
-    local t = os.clock() - animStart
+-- =====================================================================
+--  status pill (only reads the script state, never changes it)
+-- =====================================================================
+local StatusPill = make("Frame", Body, {
+    Name = "StatusPill",
+    Size = UDim2.new(1, -28, 0, 24),
+    Position = UDim2.new(0, 14, 0, 178),
+    BackgroundColor3 = Color3.fromRGB(14, 8, 24),
+    BackgroundTransparency = 0,
+    BorderSizePixel = 0,
+    ZIndex = 4,
+})
+addCorner(StatusPill, UDim.new(1, 0))
+make("UIStroke", StatusPill, {Color = Color3.fromRGB(170, 110, 230), Thickness = 1, Transparency = 0.6})
 
-    for _, f in ipairs(flakes) do
-        f.y += f.speed * dt
-        if f.y > snowH + 6 then
-            f.y = -6
-            f.x = rng:NextNumber(0, snowW)
-        end
-        f.frame.Position = UDim2.new(0, f.x + math.sin(t * f.freq + f.phase) * f.sway, 0, f.y)
-    end
+local StatusDot = make("Frame", StatusPill, {
+    Size = UDim2.new(0, 8, 0, 8),
+    Position = UDim2.new(0, 12, 0.5, -4),
+    BackgroundColor3 = Color3.fromRGB(150, 100, 200),
+    BorderSizePixel = 0,
+})
+addCorner(StatusDot, UDim.new(1, 0))
 
-    for _, s in ipairs(stars) do
-        s.frame.BackgroundTransparency = 0.25 + 0.6 * (0.5 + 0.5 * math.sin(t * s.freq + s.phase))
-    end
+local StatusLabel = make("TextLabel", StatusPill, {
+    Size = UDim2.new(0, 170, 1, 0),
+    Position = UDim2.new(0, 28, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "Sleeping in the crypt",
+    TextColor3 = Color3.fromRGB(220, 200, 245),
+    Font = Enum.Font.GothamMedium,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left,
+})
 
-    for _, a in ipairs(auroras) do
-        a.holder.Position = UDim2.new(0, a.x + math.sin(t * a.freq + a.phase) * a.amp, 0, a.y + math.sin(t * a.freq * 0.7 + a.phase) * 4)
-    end
+local AfkLabel = make("TextLabel", StatusPill, {
+    Size = UDim2.new(0, 120, 1, 0),
+    Position = UDim2.new(1, -132, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "AFK guard: OFF",
+    TextColor3 = Color3.fromRGB(160, 130, 200),
+    Font = Enum.Font.Gotham,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Right,
+})
 
-    StrokeGradient.Rotation = (t * 40) % 360
-    SnowIcon.Rotation = (t * 24) % 360
-end)
+-- =====================================================================
+--  rows and toggles
+-- =====================================================================
+local ROW_STROKE_OFF = Color3.fromRGB(170, 110, 230)
+local ROW_STROKE_ON = Color3.fromRGB(255, 160, 50)
 
-ScreenGui.Destroying:Connect(function()
-    animConnection:Disconnect()
-end)
-
-CloseBtn.MouseButton1Click:Connect(function()
-    animConnection:Disconnect()
-    unloadScript()
-    ScreenGui:Destroy()
-end)
-
--- rows ------------------------------------------------------------------
-local ROW_STROKE_OFF = Color3.fromRGB(150, 210, 255)
-local ROW_STROKE_ON = Color3.fromRGB(120, 235, 255)
+local rowGlows = {}
 
 local function createRow(labelText, subText, glyph, colorA, colorB, yPos)
+    local glowFrame = make("Frame", Body, {
+        Size = UDim2.new(1, -20, 0, 52),
+        Position = UDim2.new(0, 10, 0, yPos - 3),
+        BackgroundColor3 = Color3.fromRGB(255, 140, 30),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 3,
+    })
+    addCorner(glowFrame, UDim.new(0, 15))
+
     local row = make("Frame", Body, {
-        Size = UDim2.new(1, -28, 0, 44),
+        Size = UDim2.new(1, -28, 0, 46),
         Position = UDim2.new(0, 14, 0, yPos),
-        BackgroundColor3 = Color3.new(1, 1, 1),
-        BackgroundTransparency = 0.92,
+        BackgroundColor3 = Color3.fromRGB(28, 15, 44),
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = 4,
     })
@@ -790,95 +1088,123 @@ local function createRow(labelText, subText, glyph, colorA, colorB, yPos)
     make("UIStroke", row, {Name = "RowStroke", Color = ROW_STROKE_OFF, Thickness = 1.5, Transparency = 0.55})
 
     local badge = make("Frame", row, {
-        Size = UDim2.new(0, 30, 0, 30),
+        Size = UDim2.new(0, 32, 0, 32),
         Position = UDim2.new(0, 8, 0, 7),
         BackgroundColor3 = Color3.new(1, 1, 1),
         BorderSizePixel = 0,
     })
-    addCorner(badge, UDim.new(0, 9))
+    addCorner(badge, UDim.new(0, 10))
     gradient(badge, 45, ColorSequence.new(colorA, colorB))
     make("TextLabel", badge, {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Text = glyph,
-        TextColor3 = Color3.fromRGB(20, 30, 60),
+        TextColor3 = Color3.fromRGB(25, 12, 35),
         Font = Enum.Font.GothamBold,
-        TextSize = 13,
+        TextSize = 16,
     })
 
     make("TextLabel", row, {
-        Size = UDim2.new(0, 150, 0, 18),
-        Position = UDim2.new(0, 48, 0, 6),
+        Size = UDim2.new(0, 160, 0, 18),
+        Position = UDim2.new(0, 50, 0, 6),
         BackgroundTransparency = 1,
         Text = labelText,
-        TextColor3 = Color3.fromRGB(235, 244, 255),
+        TextColor3 = Color3.fromRGB(255, 240, 225),
         Font = Enum.Font.GothamMedium,
         TextSize = 14,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
     make("TextLabel", row, {
-        Size = UDim2.new(0, 150, 0, 14),
-        Position = UDim2.new(0, 48, 0, 24),
+        Size = UDim2.new(0, 160, 0, 14),
+        Position = UDim2.new(0, 50, 0, 25),
         BackgroundTransparency = 1,
         Text = subText,
-        TextColor3 = Color3.fromRGB(140, 185, 235),
+        TextColor3 = Color3.fromRGB(190, 150, 230),
         Font = Enum.Font.Gotham,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
     })
 
+    rowGlows[row] = {frame = glowFrame, on = false, a = 0}
     return row
 end
 
-local Row1 = createRow("Auto Farm", "Collects coins", "$", Color3.fromRGB(255, 205, 90), Color3.fromRGB(255, 150, 60), 62)
-local Row2 = createRow("Anti-AFK", "Prevents idle kick", "Zz", Color3.fromRGB(170, 140, 255), Color3.fromRGB(110, 100, 230), 114)
+local Row1 = createRow("Auto Farm", "Collects coins", "💰", Color3.fromRGB(255, 195, 60), Color3.fromRGB(240, 100, 30), 68)
+local Row2 = createRow("Anti-AFK", "Prevents idle kick", "💤", Color3.fromRGB(160, 240, 100), Color3.fromRGB(120, 90, 230), 122)
 
-local TOGGLE_OFF = Color3.fromRGB(38, 52, 90)
-local TOGGLE_ON = Color3.fromRGB(110, 225, 255)
+local TOGGLE_OFF = Color3.fromRGB(44, 28, 64)
+local TOGGLE_ON = Color3.fromRGB(255, 150, 40)
 
 local function createToggle(parent, initialVal, callback)
     local toggle = make("TextButton", parent, {
-        Size = UDim2.new(0, 50, 0, 26),
-        Position = UDim2.new(1, -62, 0.5, -13),
+        Size = UDim2.new(0, 58, 0, 28),
+        Position = UDim2.new(1, -70, 0.5, -14),
         BackgroundColor3 = initialVal and TOGGLE_ON or TOGGLE_OFF,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Text = "",
     })
     addCorner(toggle, UDim.new(1, 0))
-    gradient(toggle, 90, ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 225, 255)))
+    gradient(toggle, 90, ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(225, 200, 220)))
 
     local toggleStroke = make("UIStroke", toggle, {
-        Color = Color3.fromRGB(150, 230, 255),
+        Color = Color3.fromRGB(255, 205, 120),
         Thickness = 1.5,
-        Transparency = initialVal and 0.25 or 1,
+        Transparency = initialVal and 0.2 or 1,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
     })
 
+    local stateLabel = make("TextLabel", toggle, {
+        Size = UDim2.new(0, 26, 1, 0),
+        Position = initialVal and UDim2.new(0, 7, 0, 0) or UDim2.new(1, -33, 0, 0),
+        BackgroundTransparency = 1,
+        Text = initialVal and "ON" or "OFF",
+        TextColor3 = initialVal and Color3.fromRGB(70, 25, 0) or Color3.fromRGB(150, 120, 190),
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+    })
+
     local knob = make("Frame", toggle, {
-        Size = UDim2.new(0, 20, 0, 20),
-        Position = initialVal and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10),
+        Size = UDim2.new(0, 22, 0, 22),
+        Position = initialVal and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11),
         BackgroundColor3 = Color3.new(1, 1, 1),
         BorderSizePixel = 0,
     })
     addCorner(knob, UDim.new(1, 0))
 
+    local knobIcon = make("TextLabel", knob, {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = initialVal and "🎃" or "💀",
+        TextSize = 13,
+    })
+
     local rowStroke = parent:FindFirstChild("RowStroke")
+    local rowGlow = rowGlows[parent]
 
     local state = initialVal
     toggle.MouseButton1Click:Connect(function()
         state = not state
-        local goalPos = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
+        local goalPos = state and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11)
         local goalBg = state and TOGGLE_ON or TOGGLE_OFF
-        TweenService:Create(toggle, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundColor3 = goalBg}):Play()
-        TweenService:Create(knob, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = goalPos}):Play()
-        TweenService:Create(toggleStroke, TweenInfo.new(0.18), {Transparency = state and 0.25 or 1}):Play()
+        TweenService:Create(toggle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundColor3 = goalBg}):Play()
+        TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = goalPos}):Play()
+        TweenService:Create(toggleStroke, TweenInfo.new(0.2), {Transparency = state and 0.2 or 1}):Play()
+
+        stateLabel.Text = state and "ON" or "OFF"
+        TweenService:Create(stateLabel, TweenInfo.new(0.2), {
+            Position = state and UDim2.new(0, 7, 0, 0) or UDim2.new(1, -33, 0, 0),
+            TextColor3 = state and Color3.fromRGB(70, 25, 0) or Color3.fromRGB(150, 120, 190),
+        }):Play()
+        knobIcon.Text = state and "🎃" or "💀"
+
         if rowStroke then
-            TweenService:Create(rowStroke, TweenInfo.new(0.18), {
+            TweenService:Create(rowStroke, TweenInfo.new(0.2), {
                 Color = state and ROW_STROKE_ON or ROW_STROKE_OFF,
-                Transparency = state and 0.15 or 0.55,
+                Transparency = state and 0.1 or 0.55,
             }):Play()
         end
+        if rowGlow then rowGlow.on = state end
         callback(state)
     end)
     return toggle
@@ -900,6 +1226,151 @@ end)
 createToggle(Row2, false, function(state)
     afkActive = state
     if state and enabled then task.spawn(antiAfkLoop) end
+end)
+
+-- =====================================================================
+--  animation loop
+-- =====================================================================
+local animStart = os.clock()
+local flashT0 = 0.5
+local nextFlash = 8
+local lastStatus = nil
+local lastAfk = nil
+
+local function flashIntensity(dt)
+    if dt < 0 then return 0 end
+    if dt < 0.08 then return 1 end
+    if dt < 0.16 then return 0.2 end
+    if dt < 0.26 then return 0.85 end
+    if dt < 0.7 then return 0.85 * (1 - (dt - 0.26) / 0.44) end
+    return 0
+end
+
+local animConnection = RunService.Heartbeat:Connect(function(dt)
+    local t = os.clock() - animStart
+
+    -- pulsing, colour-shifting outer glow
+    local gc = ORANGE:Lerp(PURPLE, 0.5 + 0.5 * math.sin(t * 0.6))
+    for _, g in ipairs(glows) do
+        g.frame.BackgroundColor3 = gc
+        g.frame.BackgroundTransparency = g.base + 0.02 * math.sin(t * 2)
+    end
+
+    for _, f in ipairs(flakes) do
+        f.y -= f.speed * dt
+        if f.y < -6 then
+            f.y = snowH + 6
+            f.x = rng:NextNumber(0, snowW)
+        end
+        f.frame.Position = UDim2.new(0, f.x + math.sin(t * f.freq + f.phase) * f.sway, 0, f.y)
+    end
+
+    for _, s in ipairs(stars) do
+        s.frame.BackgroundTransparency = 0.25 + 0.6 * (0.5 + 0.5 * math.sin(t * s.freq + s.phase))
+    end
+
+    for _, a in ipairs(auroras) do
+        a.holder.Position = UDim2.new(0, a.x + math.sin(t * a.freq + a.phase) * a.amp, 0, a.y + math.sin(t * a.freq * 0.7 + a.phase) * 4)
+    end
+
+    for _, c in ipairs(clouds) do
+        local span = WIN_W + c.w + 40
+        local x = (c.x + t * c.speed) % span - c.w - 20
+        c.frame.Position = UDim2.new(0, x, 0, c.y + math.sin(t * 0.5 + c.x) * 3)
+    end
+
+    for _, w in ipairs(windows) do
+        local flick = 0.5 + 0.5 * math.sin(t * w.freq + w.phase) * math.sin(t * w.freq * 2.7)
+        w.frame.BackgroundTransparency = 0.05 + 0.4 * flick
+    end
+
+    for _, p in ipairs(pulses) do
+        p.frame.BackgroundTransparency = p.base + p.amp * math.sin(t * p.freq + p.phase)
+    end
+
+    for _, r in ipairs(moonRings) do
+        r.frame.BackgroundTransparency = r.base - 0.015 + 0.015 * math.sin(t * 0.8)
+    end
+
+    for _, d in ipairs(drips) do
+        d.frame.Size = UDim2.new(0, d.w, 0, d.base * (0.75 + 0.25 * math.sin(t * d.freq + d.phase)))
+    end
+
+    for _, b in ipairs(bats) do
+        b.frame.Position = UDim2.new(
+            0, b.cx + math.sin(t * b.freq + b.phase) * b.range,
+            0, b.cy + math.sin(t * b.freq * 2.3 + b.phase) * 9
+        )
+        b.frame.Rotation = math.cos(t * b.freq + b.phase) * 18
+    end
+
+    for _, g in ipairs(ghosts) do
+        g.frame.Position = UDim2.new(
+            0, g.cx + math.sin(t * g.freq + g.phase) * g.range,
+            0, g.cy + math.sin(t * g.freq * 1.7 + g.phase) * 8
+        )
+        g.frame.TextTransparency = 0.5 + 0.2 * math.sin(t * 1.3 + g.phase)
+    end
+
+    -- lightning
+    if t > nextFlash then
+        flashT0 = t
+        nextFlash = t + rng:NextNumber(6, 13)
+    end
+    local fi = flashIntensity(t - flashT0)
+    Flash.BackgroundTransparency = 1 - 0.2 * fi
+    for _, piece in ipairs(boltPieces) do
+        piece.BackgroundTransparency = 1 - fi
+    end
+
+    -- hanging spider
+    local threadLen = 16 + 14 * (0.5 + 0.5 * math.sin(t * 0.9))
+    SpiderThread.Size = UDim2.new(0, 1, 0, threadLen)
+    Spider.Position = UDim2.new(0, 285, 0, threadLen - 1)
+
+    -- header
+    StrokeGradient.Rotation = (t * 40) % 360
+    SnowIcon.Rotation = math.sin(t * 2.2) * 14
+    IconRing.BackgroundTransparency = 0.86 + 0.08 * math.sin(t * 2.6)
+    IconRing.Size = UDim2.new(0, 46 + 4 * math.sin(t * 2.6), 0, 46 + 4 * math.sin(t * 2.6))
+    Title.TextTransparency = (math.sin(t * 37) * math.sin(t * 11) > 0.94) and 0.45 or 0
+
+    -- row glow for enabled features
+    for _, rg in pairs(rowGlows) do
+        local target = rg.on and (0.11 + 0.04 * math.sin(t * 3)) or 0
+        rg.a += (target - rg.a) * math.min(1, dt * 8)
+        rg.frame.BackgroundTransparency = 1 - rg.a
+    end
+
+    -- status pill
+    local statusText = enabled and "Haunting coins..." or "Sleeping in the crypt"
+    if statusText ~= lastStatus then
+        lastStatus = statusText
+        StatusLabel.Text = statusText
+    end
+    if enabled then
+        StatusDot.BackgroundColor3 = Color3.fromRGB(120, 255, 90)
+        StatusDot.BackgroundTransparency = 0.5 - 0.5 * math.sin(t * 5) * 0.7
+    else
+        StatusDot.BackgroundColor3 = Color3.fromRGB(150, 100, 200)
+        StatusDot.BackgroundTransparency = 0.2
+    end
+    local afkText = afkActive and "AFK guard: ON" or "AFK guard: OFF"
+    if afkText ~= lastAfk then
+        lastAfk = afkText
+        AfkLabel.Text = afkText
+        AfkLabel.TextColor3 = afkActive and Color3.fromRGB(150, 255, 110) or Color3.fromRGB(160, 130, 200)
+    end
+end)
+
+ScreenGui.Destroying:Connect(function()
+    animConnection:Disconnect()
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    animConnection:Disconnect()
+    unloadScript()
+    ScreenGui:Destroy()
 end)
 
 local dragging, dragStart, startPos = false, nil, nil
